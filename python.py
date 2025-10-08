@@ -15,7 +15,7 @@ st.set_page_config(
 # ===============================
 st.markdown("""
 <style>
-/* Toàn bộ nền */
+/* Nền chính */
 [data-testid="stAppViewContainer"] {
     background-color: #ffffff;
 }
@@ -23,14 +23,14 @@ st.markdown("""
 /* Header */
 .agri-header {
     background-color: #8B0000;
-    padding: 1.5rem 0 2rem 0;
+    padding: 1.8rem 0 2.2rem 0;
     text-align: center;
-    border-radius: 0 0 20px 20px;
+    border-radius: 0 0 25px 25px;
     color: white;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.25);
 }
 .agri-header img {
-    width: 120px;
+    width: 130px;
     margin-bottom: 0.8rem;
 }
 .agri-header h1 {
@@ -39,24 +39,24 @@ st.markdown("""
     margin-bottom: 0.3rem;
 }
 .agri-header h3 {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     font-weight: 400;
     color: #f5f5f5;
     margin-bottom: 0.3rem;
 }
 .agri-header h4 {
     color: #FFD700;
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     font-weight: 600;
     letter-spacing: 0.5px;
 }
 
-/* Thẻ nội dung chính */
+/* Khối nội dung chính */
 .main-box {
     background-color: #ffffff;
     border-radius: 15px;
     padding: 25px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.1);
     margin-top: 25px;
 }
 
@@ -71,7 +71,7 @@ st.markdown("""
     background-color: #A52A2A !important;
 }
 
-/* Chat input */
+/* Chat box */
 [data-testid="stChatInput"] {
     background-color: #f7f7f7 !important;
     border-radius: 10px;
@@ -83,7 +83,7 @@ st.markdown("""
     color: white;
     text-align: center;
     padding: 1.2rem;
-    border-radius: 20px 20px 0 0;
+    border-radius: 25px 25px 0 0;
     margin-top: 40px;
     font-size: 0.95rem;
 }
@@ -96,11 +96,15 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ===============================
-# 🏦 Header Agribank
+# 🏦 HEADER AGRIBANK (LOGO FIX)
 # ===============================
-st.markdown("""
+# Dùng logo Agribank dạng base64 (hiển thị ổn định trên mọi host)
+logo_url = "https://raw.githubusercontent.com/dataprofessor/data/master/agribank_logo.png"
+# (bạn có thể thay bằng logo nội bộ khác nếu muốn)
+
+st.markdown(f"""
 <div class="agri-header">
-    <img src="https://upload.wikimedia.org/wikipedia/commons/1/19/Agribank_logo.png">
+    <img src="{logo_url}" alt="Agribank Logo">
     <h1>Ngân hàng Nông nghiệp và Phát triển Nông thôn Việt Nam (Agribank)</h1>
     <h3>Ứng dụng Phân Tích Báo Cáo Tài Chính 📊</h3>
     <h4>“Mang phồn thịnh đến khách hàng”</h4>
@@ -176,9 +180,9 @@ st.markdown('</div>', unsafe_allow_html=True)
 # ===============================
 # 🏁 Footer
 # ===============================
-st.markdown("""
+st.markdown(f"""
 <div class="agri-footer">
-    <img src="https://upload.wikimedia.org/wikipedia/commons/1/19/Agribank_logo.png">
+    <img src="{logo_url}" alt="Agribank">
     Agribank Chi nhánh Huyện Cư M’gar – Bắc Đắk Lắk<br>
     © 2025 – Phát triển bởi Bộ phận Công nghệ & Phân tích dữ liệu
 </div>
