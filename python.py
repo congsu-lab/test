@@ -37,17 +37,12 @@ def process_financial_data(df):
     tong_tai_san_N_1 = tong_tai_san_row['Năm trước'].iloc[0]
     tong_tai_san_N = tong_tai_san_row['Năm sau'].iloc[0]
 
-    # ******************************* PHẦN SỬA LỖI BẮT ĐẦU *******************************
-    # Lỗi xảy ra khi dùng .replace() trên giá trị đơn lẻ (numpy.int64).
-    # Sử dụng điều kiện ternary để xử lý giá trị 0 thủ công cho mẫu số.
-    
+    # Phần sửa lỗi xử lý mẫu số bằng điều kiện ternary
     divisor_N_1 = tong_tai_san_N_1 if tong_tai_san_N_1 != 0 else 1e-9
     divisor_N = tong_tai_san_N if tong_tai_san_N != 0 else 1e-9
 
-    # Tính tỷ trọng với mẫu số đã được xử lý
     df['Tỷ trọng Năm trước (%)'] = (df['Năm trước'] / divisor_N_1) * 100
     df['Tỷ trọng Năm sau (%)'] = (df['Năm sau'] / divisor_N) * 100
-    # ******************************* PHẦN SỬA LỖI KẾT THÚC *******************************
     
     return df
 
@@ -111,18 +106,14 @@ if uploaded_file is not None:
             st.subheader("4. Các Chỉ số Tài chính Cơ bản")
             
             try:
-                # Lọc giá trị cho Chỉ số Thanh toán Hiện hành (Ví dụ)
-                
                 # Lấy Tài sản ngắn hạn
                 tsnh_n = df_processed[df_processed['Chỉ tiêu'].str.contains('TÀI SẢN NGẮN HẠN', case=False, na=False)]['Năm sau'].iloc[0]
                 tsnh_n_1 = df_processed[df_processed['Chỉ tiêu'].str.contains('TÀI SẢN NGẮN HẠN', case=False, na=False)]['Năm trước'].iloc[0]
 
-                # Lấy Nợ ngắn hạn (Dùng giá trị giả định hoặc lọc từ file nếu có)
-                # **LƯU Ý: Thay thế logic sau nếu bạn có Nợ Ngắn Hạn trong file**
+                # Lấy Nợ ngắn hạn
                 no_ngan_han_N = df_processed[df_processed['Chỉ tiêu'].str.contains('NỢ NGẮN HẠN', case=False, na=False)]['Năm sau'].iloc[0]  
                 no_ngan_han_N_1 = df_processed[df_processed['Chỉ tiêu'].str.contains('NỢ NGẮN HẠN', case=False, na=False)]['Năm trước'].iloc[0]
 
-                # Tính toán
                 thanh_toan_hien_hanh_N = tsnh_n / no_ngan_han_N
                 thanh_toan_hien_hanh_N_1 = tsnh_n_1 / no_ngan_han_N_1
                 
@@ -141,13 +132,12 @@ if uploaded_file is not None:
                     
             except IndexError:
                  st.warning("Thiếu chỉ tiêu 'TÀI SẢN NGẮN HẠN' hoặc 'NỢ NGẮN HẠN' để tính chỉ số.")
-                 thanh_toan_hien_hanh_N = "N/A" # Dùng để tránh lỗi ở Chức năng 5
+                 thanh_toan_hien_hanh_N = "N/A"
                  thanh_toan_hien_hanh_N_1 = "N/A"
             
             # --- Chức năng 5: Nhận xét AI ---
             st.subheader("5. Nhận xét Tình hình Tài chính (AI)")
             
-            # Chuẩn bị dữ liệu để gửi cho AI
             data_for_ai = pd.DataFrame({
                 'Chỉ tiêu': [
                     'Toàn bộ Bảng phân tích (dữ liệu thô)', 
@@ -173,7 +163,7 @@ if uploaded_file is not None:
                         st.info(ai_result)
                 else:
                      st.error("Lỗi: Không tìm thấy Khóa API. Vui lòng cấu hình Khóa 'GEMINI_API_KEY' trong Streamlit Secrets.")
-
+            
             # --- Khung Chat hỏi đáp Gemini (mở rộng) ---
             st.subheader("Khung Chat Trực Tiếp với Gemini AI")
 
@@ -184,7 +174,6 @@ if uploaded_file is not None:
                 if api_key:
                     if user_question.strip():
                         with st.spinner("Đang gửi câu hỏi và chờ Gemini trả lời..."):
-                            # Tạo prompt phù hợp với câu hỏi chat
                             prompt_chat = f"Bạn là một trợ lý AI chuyên nghiệp. Trả lời câu hỏi sau một cách rõ ràng và súc tích:\n\n{user_question}"
                             try:
                                 client = genai.Client(api_key=api_key)
