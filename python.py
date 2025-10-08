@@ -1,159 +1,136 @@
 import streamlit as st
 import pandas as pd
 import google.generativeai as genai
-from google.generativeai import types
 
-# ==============================
-# 🎨 Cấu hình Giao diện
-# ==============================
+# ===============================
+# ⚙️ Cấu hình trang
+# ===============================
 st.set_page_config(
     page_title="Phân Tích Báo Cáo Tài Chính - Agribank",
     layout="wide"
 )
 
-# CSS nền màu đỏ bordeaux + logo + style
+# ===============================
+# 🎨 CSS giao diện Agribank
+# ===============================
 st.markdown("""
-    <style>
-    body {
-        background-color: #8B0000; /* Đỏ bordeaux Agribank */
-        color: white;
-    }
-    [data-testid="stAppViewContainer"] {
-        background-color: #8B0000;
-        color: white;
-    }
-    [data-testid="stHeader"] {
-        background: transparent;
-    }
-    [data-testid="stSidebar"] {
-        background-color: #A40000;
-    }
-    .block-container {
-        padding-top: 1.5rem;
-        padding-bottom: 2rem;
-    }
-    .stButton>button {
-        background-color: #A40000;
-        color: white;
-        border-radius: 8px;
-        font-weight: bold;
-    }
-    .stButton>button:hover {
-        background-color: #B22222;
-        color: #fff;
-    }
-    </style>
+<style>
+/* Nền tổng thể */
+[data-testid="stAppViewContainer"] {
+    background-color: #ffffff;
+}
+
+/* Header đỏ boóc-đô */
+header {
+    background-color: #8B0000 !important;
+}
+
+/* Logo + tiêu đề */
+.agri-header {
+    background-color: #8B0000;
+    padding: 1.5rem 0;
+    text-align: center;
+    border-radius: 0 0 20px 20px;
+    color: white;
+}
+.agri-header img {
+    width: 120px;
+    margin-bottom: 0.5rem;
+}
+.agri-header h1 {
+    font-size: 1.8rem;
+    margin-bottom: 0.3rem;
+}
+.agri-header h3 {
+    font-size: 1.1rem;
+    font-weight: 400;
+    color: #f8f8f8;
+}
+
+/* Thẻ nội dung chính */
+.main-box {
+    background-color: #ffffff;
+    border-radius: 15px;
+    padding: 25px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin-top: 20px;
+}
+
+/* Nút Agribank */
+.stButton>button {
+    background-color: #8B0000 !important;
+    color: white !important;
+    font-weight: bold;
+    border-radius: 8px;
+}
+.stButton>button:hover {
+    background-color: #A52A2A !important;
+}
+
+/* Chat box */
+[data-testid="stChatInput"] {
+    background-color: #f7f7f7 !important;
+    border-radius: 8px;
+}
+</style>
 """, unsafe_allow_html=True)
 
-# ==============================
-# 🏦 Logo & Tiêu đề
-# ==============================
-col_logo, col_title = st.columns([1, 5])
-with col_logo:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/1/19/Agribank_logo.png", width=110)
-with col_title:
-    st.title("Ngân hàng Nông nghiệp và Phát triển Nông thôn Việt Nam (Agribank)")
-    st.markdown("### Ứng dụng Phân Tích Báo Cáo Tài Chính 📊")
+# ===============================
+# 🏦 Header Agribank
+# ===============================
+st.markdown("""
+<div class="agri-header">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/1/19/Agribank_logo.png">
+    <h1>Ngân hàng Nông nghiệp và Phát triển Nông thôn Việt Nam (Agribank)</h1>
+    <h3>Ứng dụng Phân Tích Báo Cáo Tài Chính 📊</h3>
+</div>
+""", unsafe_allow_html=True)
 
-# ==============================
-# ⚙️ Hàm xử lý dữ liệu
-# ==============================
+# ===============================
+# 📂 Tải file & xử lý dữ liệu
+# ===============================
 @st.cache_data
 def process_financial_data(df):
-    numeric_cols = ['Năm trước', 'Năm sau']
-    for col in numeric_cols:
-        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-
-    df['Tốc độ tăng trưởng (%)'] = (
-        (df['Năm sau'] - df['Năm trước']) / df['Năm trước'].replace(0, 1e-9)
-    ) * 100
-
-    tong_tai_san_row = df[df['Chỉ tiêu'].str.contains('TỔNG CỘNG TÀI SẢN', case=False, na=False)]
-    if tong_tai_san_row.empty:
-        raise ValueError("Không tìm thấy chỉ tiêu 'TỔNG CỘNG TÀI SẢN'.")
-
-    tong_tai_san_N_1 = tong_tai_san_row['Năm trước'].iloc[0]
-    tong_tai_san_N = tong_tai_san_row['Năm sau'].iloc[0]
-    divisor_N_1 = tong_tai_san_N_1 if tong_tai_san_N_1 != 0 else 1e-9
-    divisor_N = tong_tai_san_N if tong_tai_san_N != 0 else 1e-9
-
-    df['Tỷ trọng Năm trước (%)'] = (df['Năm trước'] / divisor_N_1) * 100
-    df['Tỷ trọng Năm sau (%)'] = (df['Năm sau'] / divisor_N) * 100
-
+    df['Năm trước'] = pd.to_numeric(df['Năm trước'], errors='coerce').fillna(0)
+    df['Năm sau'] = pd.to_numeric(df['Năm sau'], errors='coerce').fillna(0)
+    df['Tốc độ tăng trưởng (%)'] = ((df['Năm sau'] - df['Năm trước']) / df['Năm trước'].replace(0, 1e-9)) * 100
+    tong_ts = df[df['Chỉ tiêu'].str.contains('TỔNG CỘNG TÀI SẢN', case=False, na=False)]
+    if tong_ts.empty: raise ValueError("Thiếu chỉ tiêu 'TỔNG CỘNG TÀI SẢN'")
+    ts_n1, ts_n = tong_ts.iloc[0]['Năm trước'], tong_ts.iloc[0]['Năm sau']
+    ts_n1, ts_n = ts_n1 or 1e-9, ts_n or 1e-9
+    df['Tỷ trọng Năm trước (%)'] = (df['Năm trước']/ts_n1)*100
+    df['Tỷ trọng Năm sau (%)'] = (df['Năm sau']/ts_n)*100
     return df
 
-# ==============================
-# 📁 Upload file
-# ==============================
-uploaded_file = st.file_uploader(
-    "📂 Tải file Excel Báo cáo Tài chính (Chỉ tiêu | Năm trước | Năm sau)",
-    type=['xlsx', 'xls']
-)
+with st.container():
+    st.markdown('<div class="main-box">', unsafe_allow_html=True)
 
-if uploaded_file is not None:
-    try:
-        df_raw = pd.read_excel(uploaded_file)
-        df_raw.columns = ['Chỉ tiêu', 'Năm trước', 'Năm sau']
-        df_processed = process_financial_data(df_raw.copy())
-
-        st.subheader("2️⃣ Phân tích Tăng trưởng & Tỷ trọng Cơ cấu Tài sản")
-        st.dataframe(
-            df_processed.style.format({
-                'Năm trước': '{:,.0f}',
-                'Năm sau': '{:,.0f}',
-                'Tốc độ tăng trưởng (%)': '{:.2f}%',
-                'Tỷ trọng Năm trước (%)': '{:.2f}%',
-                'Tỷ trọng Năm sau (%)': '{:.2f}%'
-            }),
-            use_container_width=True
-        )
-
-        # ---- Chỉ số tài chính ----
-        st.subheader("3️⃣ Chỉ số Thanh toán Hiện hành")
+    uploaded_file = st.file_uploader("📂 Tải file Excel Báo cáo Tài chính (Chỉ tiêu | Năm trước | Năm sau)",
+                                     type=['xlsx', 'xls'])
+    if uploaded_file:
         try:
-            tsnh_n = df_processed[df_processed['Chỉ tiêu'].str.contains('TÀI SẢN NGẮN HẠN', case=False, na=False)]['Năm sau'].iloc[0]
-            tsnh_n_1 = df_processed[df_processed['Chỉ tiêu'].str.contains('TÀI SẢN NGẮN HẠN', case=False, na=False)]['Năm trước'].iloc[0]
-            no_ngan_han_N = df_processed[df_processed['Chỉ tiêu'].str.contains('NỢ NGẮN HẠN', case=False, na=False)]['Năm sau'].iloc[0]
-            no_ngan_han_N_1 = df_processed[df_processed['Chỉ tiêu'].str.contains('NỢ NGẮN HẠN', case=False, na=False)]['Năm trước'].iloc[0]
+            df = pd.read_excel(uploaded_file)
+            df.columns = ['Chỉ tiêu', 'Năm trước', 'Năm sau']
+            dfp = process_financial_data(df)
 
-            thanh_toan_hien_hanh_N = tsnh_n / no_ngan_han_N
-            thanh_toan_hien_hanh_N_1 = tsnh_n_1 / no_ngan_han_N_1
+            st.subheader("📈 Bảng Phân tích")
+            st.dataframe(dfp.style.format({
+                'Năm trước': '{:,.0f}', 'Năm sau': '{:,.0f}',
+                'Tốc độ tăng trưởng (%)': '{:.2f}%',
+                'Tỷ trọng Năm trước (%)': '{:.2f}%', 'Tỷ trọng Năm sau (%)': '{:.2f}%'
+            }), use_container_width=True)
 
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Thanh toán Hiện hành (Năm trước)", f"{thanh_toan_hien_hanh_N_1:.2f} lần")
-            with col2:
-                st.metric("Thanh toán Hiện hành (Năm sau)", f"{thanh_toan_hien_hanh_N:.2f} lần",
-                          delta=f"{thanh_toan_hien_hanh_N - thanh_toan_hien_hanh_N_1:.2f}")
-        except IndexError:
-            st.warning("Thiếu chỉ tiêu 'TÀI SẢN NGẮN HẠN' hoặc 'NỢ NGẮN HẠN'.")
+        except Exception as e:
+            st.error(f"Lỗi xử lý file: {e}")
+    else:
+        st.info("⬆️ Vui lòng tải file Excel để bắt đầu phân tích.")
 
-        # ---- Nhận xét AI ----
-        st.subheader("4️⃣ Nhận xét từ AI Gemini")
-        api_key = st.secrets.get("GEMINI_API_KEY")
-        if not api_key:
-            st.error("⚠️ Chưa cấu hình GEMINI_API_KEY trong secrets.")
-        else:
-            genai.configure(api_key=api_key)
-            if st.button("✨ Phân tích bằng Gemini"):
-                with st.spinner("Đang phân tích dữ liệu..."):
-                    model = genai.GenerativeModel("gemini-1.5-flash")
-                    prompt = f"""
-                    Bạn là chuyên gia tài chính. Hãy nhận xét ngắn gọn (3-4 đoạn) về tình hình tài chính dựa trên:
-                    {df_processed.to_markdown(index=False)}
-                    """
-                    response = model.generate_content(prompt)
-                    st.info(response.text)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    except Exception as e:
-        st.error(f"Lỗi xử lý file: {e}")
-else:
-    st.info("⬆️ Vui lòng tải file Excel để bắt đầu phân tích.")
-
-# ==============================
-# 💬 Chat Box với Gemini
-# ==============================
-st.markdown("---")
+# ===============================
+# 💬 Chat với Gemini
+# ===============================
+st.markdown('<div class="main-box">', unsafe_allow_html=True)
 st.header("💬 Trò chuyện với Gemini")
 
 api_key = st.secrets.get("GEMINI_API_KEY")
@@ -167,7 +144,6 @@ else:
         st.session_state.chat_session = model.start_chat(history=[])
 
     user_input = st.chat_input("Hỏi Gemini về tài chính, kế toán hoặc phân tích dữ liệu...")
-
     if user_input:
         with st.chat_message("user"):
             st.markdown(user_input)
@@ -176,6 +152,7 @@ else:
             reply = response.text
         except Exception as e:
             reply = f"⚠️ Lỗi khi gọi Gemini: {e}"
-
         with st.chat_message("assistant"):
             st.markdown(reply)
+
+st.markdown('</div>', unsafe_allow_html=True)
