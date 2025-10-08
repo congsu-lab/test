@@ -1,201 +1,189 @@
 import streamlit as st
 import pandas as pd
-from google import genai
-from google.genai.errors import APIError
+import google.generativeai as genai
 
-# --- Cấu hình Trang Streamlit ---
+# ===============================
+# ⚙️ Cấu hình trang
+# ===============================
 st.set_page_config(
-    page_title="App Phân Tích Báo Cáo Tài Chính",
+    page_title="Phân Tích Báo Cáo Tài Chính - Agribank",
     layout="wide"
 )
 
-st.title("Ứng dụng Phân Tích Báo Cáo Tài Chính 📊")
+# ===============================
+# 🎨 CSS GIAO DIỆN AGRIBANK
+# ===============================
+st.markdown("""
+<style>
+/* Nền chính */
+[data-testid="stAppViewContainer"] {
+    background-color: #ffffff;
+}
 
-# --- Hàm tính toán chính (Sử dụng Caching để Tối ưu hiệu suất) ---
+/* Header */
+.agri-header {
+    background-color: #8B0000;
+    padding: 1.8rem 0 2.2rem 0;
+    text-align: center;
+    border-radius: 0 0 25px 25px;
+    color: white;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+}
+.agri-header img {
+    width: 130px;
+    margin-bottom: 0.8rem;
+}
+.agri-header h1 {
+    font-size: 1.9rem;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+}
+.agri-header h3 {
+    font-size: 1.1rem;
+    font-weight: 400;
+    color: #f5f5f5;
+    margin-bottom: 0.3rem;
+}
+.agri-header h4 {
+    color: #FFD700;
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+/* Khối nội dung chính */
+.main-box {
+    background-color: #ffffff;
+    border-radius: 15px;
+    padding: 25px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    margin-top: 25px;
+}
+
+/* Nút */
+.stButton>button {
+    background-color: #8B0000 !important;
+    color: white !important;
+    font-weight: bold;
+    border-radius: 8px;
+}
+.stButton>button:hover {
+    background-color: #A52A2A !important;
+}
+
+/* Chat box */
+[data-testid="stChatInput"] {
+    background-color: #f7f7f7 !important;
+    border-radius: 10px;
+}
+
+/* Footer */
+.agri-footer {
+    background-color: #8B0000;
+    color: white;
+    text-align: center;
+    padding: 1.2rem;
+    border-radius: 25px 25px 0 0;
+    margin-top: 40px;
+    font-size: 0.95rem;
+}
+.agri-footer img {
+    width: 70px;
+    vertical-align: middle;
+    margin-right: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ===============================
+# 🏦 HEADER AGRIBANK (LOGO FIX)
+# ===============================
+# Dùng logo Agribank dạng base64 (hiển thị ổn định trên mọi host)
+logo_url = "https://raw.githubusercontent.com/dataprofessor/data/master/agribank_logo.png"
+# (bạn có thể thay bằng logo nội bộ khác nếu muốn)
+
+st.markdown(f"""
+<div class="agri-header">
+    <img src="{logo_url}" alt="Agribank Logo">
+    <h1>Ngân hàng Nông nghiệp và Phát triển Nông thôn Việt Nam (Agribank)</h1>
+    <h3>Ứng dụng Phân Tích Báo Cáo Tài Chính 📊</h3>
+    <h4>“Mang phồn thịnh đến khách hàng”</h4>
+</div>
+""", unsafe_allow_html=True)
+
+# ===============================
+# 📂 Upload & xử lý dữ liệu
+# ===============================
 @st.cache_data
 def process_financial_data(df):
-    """Thực hiện các phép tính Tăng trưởng và Tỷ trọng."""
-    
-    # Đảm bảo các giá trị là số để tính toán
-    numeric_cols = ['Năm trước', 'Năm sau']
-    for col in numeric_cols:
-        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-    
-    # 1. Tính Tốc độ Tăng trưởng
-    # Dùng .replace(0, 1e-9) cho Series Pandas để tránh lỗi chia cho 0
-    df['Tốc độ tăng trưởng (%)'] = (
-        (df['Năm sau'] - df['Năm trước']) / df['Năm trước'].replace(0, 1e-9)
-    ) * 100
-
-    # 2. Tính Tỷ trọng theo Tổng Tài sản
-    # Lọc chỉ tiêu "TỔNG CỘNG TÀI SẢN"
-    tong_tai_san_row = df[df['Chỉ tiêu'].str.contains('TỔNG CỘNG TÀI SẢN', case=False, na=False)]
-    
-    if tong_tai_san_row.empty:
-        raise ValueError("Không tìm thấy chỉ tiêu 'TỔNG CỘNG TÀI SẢN'.")
-
-    tong_tai_san_N_1 = tong_tai_san_row['Năm trước'].iloc[0]
-    tong_tai_san_N = tong_tai_san_row['Năm sau'].iloc[0]
-
-    # Phần sửa lỗi xử lý mẫu số bằng điều kiện ternary
-    divisor_N_1 = tong_tai_san_N_1 if tong_tai_san_N_1 != 0 else 1e-9
-    divisor_N = tong_tai_san_N if tong_tai_san_N != 0 else 1e-9
-
-    df['Tỷ trọng Năm trước (%)'] = (df['Năm trước'] / divisor_N_1) * 100
-    df['Tỷ trọng Năm sau (%)'] = (df['Năm sau'] / divisor_N) * 100
-    
+    df['Năm trước'] = pd.to_numeric(df['Năm trước'], errors='coerce').fillna(0)
+    df['Năm sau'] = pd.to_numeric(df['Năm sau'], errors='coerce').fillna(0)
+    df['Tốc độ tăng trưởng (%)'] = ((df['Năm sau'] - df['Năm trước']) / df['Năm trước'].replace(0, 1e-9)) * 100
+    tong_ts = df[df['Chỉ tiêu'].str.contains('TỔNG CỘNG TÀI SẢN', case=False, na=False)]
+    if tong_ts.empty: raise ValueError("Thiếu chỉ tiêu 'TỔNG CỘNG TÀI SẢN'")
+    ts_n1, ts_n = tong_ts.iloc[0]['Năm trước'], tong_ts.iloc[0]['Năm sau']
+    ts_n1, ts_n = ts_n1 or 1e-9, ts_n or 1e-9
+    df['Tỷ trọng Năm trước (%)'] = (df['Năm trước']/ts_n1)*100
+    df['Tỷ trọng Năm sau (%)'] = (df['Năm sau']/ts_n)*100
     return df
 
-# --- Hàm gọi API Gemini ---
-def get_ai_analysis(data_for_ai, api_key):
-    """Gửi dữ liệu phân tích đến Gemini API và nhận nhận xét."""
+st.markdown('<div class="main-box">', unsafe_allow_html=True)
+st.subheader("📁 Tải và Phân tích Báo cáo")
+uploaded_file = st.file_uploader("Tải file Excel (Chỉ tiêu | Năm trước | Năm sau)", type=['xlsx', 'xls'])
+if uploaded_file:
     try:
-        client = genai.Client(api_key=api_key)
-        model_name = 'gemini-2.5-flash' 
+        df = pd.read_excel(uploaded_file)
+        df.columns = ['Chỉ tiêu', 'Năm trước', 'Năm sau']
+        dfp = process_financial_data(df)
 
-        prompt = f"""
-        Bạn là một chuyên gia phân tích tài chính chuyên nghiệp. Dựa trên các chỉ số tài chính sau, hãy đưa ra một nhận xét khách quan, ngắn gọn (khoảng 3-4 đoạn) về tình hình tài chính của doanh nghiệp. Đánh giá tập trung vào tốc độ tăng trưởng, thay đổi cơ cấu tài sản và khả năng thanh toán hiện hành.
-        
-        Dữ liệu thô và chỉ số:
-        {data_for_ai}
-        """
+        st.subheader("📊 Kết quả phân tích")
+        st.dataframe(dfp.style.format({
+            'Năm trước': '{:,.0f}', 'Năm sau': '{:,.0f}',
+            'Tốc độ tăng trưởng (%)': '{:.2f}%',
+            'Tỷ trọng Năm trước (%)': '{:.2f}%',
+            'Tỷ trọng Năm sau (%)': '{:.2f}%'
+        }), use_container_width=True)
 
-        response = client.models.generate_content(
-            model=model_name,
-            contents=prompt
-        )
-        return response.text
-
-    except APIError as e:
-        return f"Lỗi gọi Gemini API: Vui lòng kiểm tra Khóa API hoặc giới hạn sử dụng. Chi tiết lỗi: {e}"
-    except KeyError:
-        return "Lỗi: Không tìm thấy Khóa API 'GEMINI_API_KEY'. Vui lòng kiểm tra cấu hình Secrets trên Streamlit Cloud."
     except Exception as e:
-        return f"Đã xảy ra lỗi không xác định: {e}"
-
-
-# --- Chức năng 1: Tải File ---
-uploaded_file = st.file_uploader(
-    "1. Tải file Excel Báo cáo Tài chính (Chỉ tiêu | Năm trước | Năm sau)",
-    type=['xlsx', 'xls']
-)
-
-if uploaded_file is not None:
-    try:
-        df_raw = pd.read_excel(uploaded_file)
-        
-        # Tiền xử lý: Đảm bảo chỉ có 3 cột quan trọng
-        df_raw.columns = ['Chỉ tiêu', 'Năm trước', 'Năm sau']
-        
-        # Xử lý dữ liệu
-        df_processed = process_financial_data(df_raw.copy())
-
-        if df_processed is not None:
-            
-            # --- Chức năng 2 & 3: Hiển thị Kết quả ---
-            st.subheader("2. Tốc độ Tăng trưởng & 3. Tỷ trọng Cơ cấu Tài sản")
-            st.dataframe(df_processed.style.format({
-                'Năm trước': '{:,.0f}',
-                'Năm sau': '{:,.0f}',
-                'Tốc độ tăng trưởng (%)': '{:.2f}%',
-                'Tỷ trọng Năm trước (%)': '{:.2f}%',
-                'Tỷ trọng Năm sau (%)': '{:.2f}%'
-            }), use_container_width=True)
-            
-            # --- Chức năng 4: Tính Chỉ số Tài chính ---
-            st.subheader("4. Các Chỉ số Tài chính Cơ bản")
-            
-            try:
-                # Lấy Tài sản ngắn hạn
-                tsnh_n = df_processed[df_processed['Chỉ tiêu'].str.contains('TÀI SẢN NGẮN HẠN', case=False, na=False)]['Năm sau'].iloc[0]
-                tsnh_n_1 = df_processed[df_processed['Chỉ tiêu'].str.contains('TÀI SẢN NGẮN HẠN', case=False, na=False)]['Năm trước'].iloc[0]
-
-                # Lấy Nợ ngắn hạn
-                no_ngan_han_N = df_processed[df_processed['Chỉ tiêu'].str.contains('NỢ NGẮN HẠN', case=False, na=False)]['Năm sau'].iloc[0]  
-                no_ngan_han_N_1 = df_processed[df_processed['Chỉ tiêu'].str.contains('NỢ NGẮN HẠN', case=False, na=False)]['Năm trước'].iloc[0]
-
-                thanh_toan_hien_hanh_N = tsnh_n / no_ngan_han_N
-                thanh_toan_hien_hanh_N_1 = tsnh_n_1 / no_ngan_han_N_1
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric(
-                        label="Chỉ số Thanh toán Hiện hành (Năm trước)",
-                        value=f"{thanh_toan_hien_hanh_N_1:.2f} lần"
-                    )
-                with col2:
-                    st.metric(
-                        label="Chỉ số Thanh toán Hiện hành (Năm sau)",
-                        value=f"{thanh_toan_hien_hanh_N:.2f} lần",
-                        delta=f"{thanh_toan_hien_hanh_N - thanh_toan_hien_hanh_N_1:.2f}"
-                    )
-                    
-            except IndexError:
-                 st.warning("Thiếu chỉ tiêu 'TÀI SẢN NGẮN HẠN' hoặc 'NỢ NGẮN HẠN' để tính chỉ số.")
-                 thanh_toan_hien_hanh_N = "N/A"
-                 thanh_toan_hien_hanh_N_1 = "N/A"
-            
-            # --- Chức năng 5: Nhận xét AI ---
-            st.subheader("5. Nhận xét Tình hình Tài chính (AI)")
-            
-            data_for_ai = pd.DataFrame({
-                'Chỉ tiêu': [
-                    'Toàn bộ Bảng phân tích (dữ liệu thô)', 
-                    'Tăng trưởng Tài sản ngắn hạn (%)', 
-                    'Thanh toán hiện hành (N-1)', 
-                    'Thanh toán hiện hành (N)'
-                ],
-                'Giá trị': [
-                    df_processed.to_markdown(index=False),
-                    f"{df_processed[df_processed['Chỉ tiêu'].str.contains('TÀI SẢN NGẮN HẠN', case=False, na=False)]['Tốc độ tăng trưởng (%)'].iloc[0]:.2f}%", 
-                    f"{thanh_toan_hien_hanh_N_1}", 
-                    f"{thanh_toan_hien_hanh_N}"
-                ]
-            }).to_markdown(index=False) 
-
-            if st.button("Yêu cầu AI Phân tích"):
-                api_key = st.secrets.get("GEMINI_API_KEY") 
-                
-                if api_key:
-                    with st.spinner('Đang gửi dữ liệu và chờ Gemini phân tích...'):
-                        ai_result = get_ai_analysis(data_for_ai, api_key)
-                        st.markdown("**Kết quả Phân tích từ Gemini AI:**")
-                        st.info(ai_result)
-                else:
-                     st.error("Lỗi: Không tìm thấy Khóa API. Vui lòng cấu hình Khóa 'GEMINI_API_KEY' trong Streamlit Secrets.")
-            
-            # --- Khung Chat hỏi đáp Gemini (mở rộng) ---
-            st.subheader("Khung Chat Trực Tiếp với Gemini AI")
-
-            user_question = st.text_area("Nhập câu hỏi để hỏi Gemini AI:", height=100)
-
-            if st.button("Gửi câu hỏi"):
-                api_key = st.secrets.get("GEMINI_API_KEY")
-                if api_key:
-                    if user_question.strip():
-                        with st.spinner("Đang gửi câu hỏi và chờ Gemini trả lời..."):
-                            prompt_chat = f"Bạn là một trợ lý AI chuyên nghiệp. Trả lời câu hỏi sau một cách rõ ràng và súc tích:\n\n{user_question}"
-                            try:
-                                client = genai.Client(api_key=api_key)
-                                response = client.models.generate_content(
-                                    model="gemini-2.5-flash",
-                                    contents=prompt_chat
-                                )
-                                st.markdown("**Phản hồi từ Gemini AI:**")
-                                st.info(response.text)
-                            except APIError as e:
-                                st.error(f"Lỗi gọi Gemini API: {e}")
-                            except Exception as e:
-                                st.error(f"Đã xảy ra lỗi không xác định: {e}")
-                    else:
-                        st.warning("Vui lòng nhập câu hỏi trước khi gửi.")
-                else:
-                    st.error("Lỗi: Không tìm thấy Khóa API 'GEMINI_API_KEY'. Vui lòng cấu hình trong Secrets.")
-
-    except ValueError as ve:
-        st.error(f"Lỗi cấu trúc dữ liệu: {ve}")
-    except Exception as e:
-        st.error(f"Có lỗi xảy ra khi đọc hoặc xử lý file: {e}. Vui lòng kiểm tra định dạng file.")
-
+        st.error(f"Lỗi xử lý file: {e}")
 else:
-    st.info("Vui lòng tải lên file Excel để bắt đầu phân tích.")
+    st.info("⬆️ Vui lòng tải file Excel để bắt đầu phân tích.")
+st.markdown('</div>', unsafe_allow_html=True)
+
+# ===============================
+# 💬 Chat với Gemini
+# ===============================
+st.markdown('<div class="main-box">', unsafe_allow_html=True)
+st.header("💬 Trò chuyện với Gemini")
+
+api_key = st.secrets.get("GEMINI_API_KEY")
+if not api_key:
+    st.error("⚠️ Chưa cấu hình GEMINI_API_KEY trong secrets.")
+else:
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    if "chat_session" not in st.session_state:
+        st.session_state.chat_session = model.start_chat(history=[])
+    user_input = st.chat_input("Hỏi Gemini về tài chính, kế toán hoặc phân tích dữ liệu...")
+    if user_input:
+        with st.chat_message("user"):
+            st.markdown(user_input)
+        try:
+            response = st.session_state.chat_session.send_message(user_input)
+            reply = response.text
+        except Exception as e:
+            reply = f"⚠️ Lỗi khi gọi Gemini: {e}"
+        with st.chat_message("assistant"):
+            st.markdown(reply)
+st.markdown('</div>', unsafe_allow_html=True)
+
+# ===============================
+# 🏁 Footer
+# ===============================
+st.markdown(f"""
+<div class="agri-footer">
+    <img src="{logo_url}" alt="Agribank">
+    Agribank Chi nhánh Huyện Cư M’gar – Bắc Đắk Lắk<br>
+    © 2025 – Phát triển bởi Bộ phận Công nghệ & Phân tích dữ liệu
+</div>
+""", unsafe_allow_html=True)
