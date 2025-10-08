@@ -11,40 +11,44 @@ st.set_page_config(
 )
 
 # ===============================
-# 🎨 CSS giao diện Agribank
+# 🎨 CSS GIAO DIỆN AGRIBANK
 # ===============================
 st.markdown("""
 <style>
-/* Nền tổng thể */
+/* Toàn bộ nền */
 [data-testid="stAppViewContainer"] {
     background-color: #ffffff;
 }
 
-/* Header đỏ boóc-đô */
-header {
-    background-color: #8B0000 !important;
-}
-
-/* Logo + tiêu đề */
+/* Header */
 .agri-header {
     background-color: #8B0000;
-    padding: 1.5rem 0;
+    padding: 1.5rem 0 2rem 0;
     text-align: center;
     border-radius: 0 0 20px 20px;
     color: white;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2);
 }
 .agri-header img {
     width: 120px;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.8rem;
 }
 .agri-header h1 {
-    font-size: 1.8rem;
+    font-size: 1.9rem;
+    font-weight: 700;
     margin-bottom: 0.3rem;
 }
 .agri-header h3 {
-    font-size: 1.1rem;
+    font-size: 1.2rem;
     font-weight: 400;
-    color: #f8f8f8;
+    color: #f5f5f5;
+    margin-bottom: 0.3rem;
+}
+.agri-header h4 {
+    color: #FFD700;
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
 }
 
 /* Thẻ nội dung chính */
@@ -52,11 +56,11 @@ header {
     background-color: #ffffff;
     border-radius: 15px;
     padding: 25px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    margin-top: 20px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    margin-top: 25px;
 }
 
-/* Nút Agribank */
+/* Nút */
 .stButton>button {
     background-color: #8B0000 !important;
     color: white !important;
@@ -67,10 +71,26 @@ header {
     background-color: #A52A2A !important;
 }
 
-/* Chat box */
+/* Chat input */
 [data-testid="stChatInput"] {
     background-color: #f7f7f7 !important;
-    border-radius: 8px;
+    border-radius: 10px;
+}
+
+/* Footer */
+.agri-footer {
+    background-color: #8B0000;
+    color: white;
+    text-align: center;
+    padding: 1.2rem;
+    border-radius: 20px 20px 0 0;
+    margin-top: 40px;
+    font-size: 0.95rem;
+}
+.agri-footer img {
+    width: 70px;
+    vertical-align: middle;
+    margin-right: 10px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -83,11 +103,12 @@ st.markdown("""
     <img src="https://upload.wikimedia.org/wikipedia/commons/1/19/Agribank_logo.png">
     <h1>Ngân hàng Nông nghiệp và Phát triển Nông thôn Việt Nam (Agribank)</h1>
     <h3>Ứng dụng Phân Tích Báo Cáo Tài Chính 📊</h3>
+    <h4>“Mang phồn thịnh đến khách hàng”</h4>
 </div>
 """, unsafe_allow_html=True)
 
 # ===============================
-# 📂 Tải file & xử lý dữ liệu
+# 📂 Upload & xử lý dữ liệu
 # ===============================
 @st.cache_data
 def process_financial_data(df):
@@ -102,30 +123,28 @@ def process_financial_data(df):
     df['Tỷ trọng Năm sau (%)'] = (df['Năm sau']/ts_n)*100
     return df
 
-with st.container():
-    st.markdown('<div class="main-box">', unsafe_allow_html=True)
+st.markdown('<div class="main-box">', unsafe_allow_html=True)
+st.subheader("📁 Tải và Phân tích Báo cáo")
+uploaded_file = st.file_uploader("Tải file Excel (Chỉ tiêu | Năm trước | Năm sau)", type=['xlsx', 'xls'])
+if uploaded_file:
+    try:
+        df = pd.read_excel(uploaded_file)
+        df.columns = ['Chỉ tiêu', 'Năm trước', 'Năm sau']
+        dfp = process_financial_data(df)
 
-    uploaded_file = st.file_uploader("📂 Tải file Excel Báo cáo Tài chính (Chỉ tiêu | Năm trước | Năm sau)",
-                                     type=['xlsx', 'xls'])
-    if uploaded_file:
-        try:
-            df = pd.read_excel(uploaded_file)
-            df.columns = ['Chỉ tiêu', 'Năm trước', 'Năm sau']
-            dfp = process_financial_data(df)
+        st.subheader("📊 Kết quả phân tích")
+        st.dataframe(dfp.style.format({
+            'Năm trước': '{:,.0f}', 'Năm sau': '{:,.0f}',
+            'Tốc độ tăng trưởng (%)': '{:.2f}%',
+            'Tỷ trọng Năm trước (%)': '{:.2f}%',
+            'Tỷ trọng Năm sau (%)': '{:.2f}%'
+        }), use_container_width=True)
 
-            st.subheader("📈 Bảng Phân tích")
-            st.dataframe(dfp.style.format({
-                'Năm trước': '{:,.0f}', 'Năm sau': '{:,.0f}',
-                'Tốc độ tăng trưởng (%)': '{:.2f}%',
-                'Tỷ trọng Năm trước (%)': '{:.2f}%', 'Tỷ trọng Năm sau (%)': '{:.2f}%'
-            }), use_container_width=True)
-
-        except Exception as e:
-            st.error(f"Lỗi xử lý file: {e}")
-    else:
-        st.info("⬆️ Vui lòng tải file Excel để bắt đầu phân tích.")
-
-    st.markdown('</div>', unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Lỗi xử lý file: {e}")
+else:
+    st.info("⬆️ Vui lòng tải file Excel để bắt đầu phân tích.")
+st.markdown('</div>', unsafe_allow_html=True)
 
 # ===============================
 # 💬 Chat với Gemini
@@ -139,10 +158,8 @@ if not api_key:
 else:
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel("gemini-1.5-flash")
-
     if "chat_session" not in st.session_state:
         st.session_state.chat_session = model.start_chat(history=[])
-
     user_input = st.chat_input("Hỏi Gemini về tài chính, kế toán hoặc phân tích dữ liệu...")
     if user_input:
         with st.chat_message("user"):
@@ -154,5 +171,15 @@ else:
             reply = f"⚠️ Lỗi khi gọi Gemini: {e}"
         with st.chat_message("assistant"):
             st.markdown(reply)
-
 st.markdown('</div>', unsafe_allow_html=True)
+
+# ===============================
+# 🏁 Footer
+# ===============================
+st.markdown("""
+<div class="agri-footer">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/1/19/Agribank_logo.png">
+    Agribank Chi nhánh Huyện Cư M’gar – Bắc Đắk Lắk<br>
+    © 2025 – Phát triển bởi Bộ phận Công nghệ & Phân tích dữ liệu
+</div>
+""", unsafe_allow_html=True)
